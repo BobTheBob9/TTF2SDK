@@ -181,6 +181,7 @@ const std::string& FileSystemManager::GetLastMapReadFrom()
 
 void FileSystemManager::MountAllVPKs()
 {
+    return;
     for (const auto& otherMapVPK : m_mapVPKs)
     {
         SPDLOG_LOGGER_DEBUG(m_logger, "Mounting VPK: {}", otherMapVPK);

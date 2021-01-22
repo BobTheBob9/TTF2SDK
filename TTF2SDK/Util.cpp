@@ -112,6 +112,21 @@ namespace Util
         }
     }
 
+    HMODULE SafeGetModuleHandle(const std::string& moduleName) {
+        HMODULE hModule;
+        for (hModule = nullptr; hModule == nullptr; Sleep(1)) {
+            hModule = GetModuleHandle(Util::Widen(moduleName).c_str());
+        }
+        return hModule;
+    }
+
+    MODULEINFO GetModuleInfo(const std::string& moduleName) {
+        MODULEINFO modinfo = { 0 };
+        HMODULE hModule = SafeGetModuleHandle(moduleName);
+        GetModuleInformation(GetCurrentProcess(), hModule, &modinfo, sizeof(MODULEINFO));
+        return modinfo;
+    }
+
     void* ResolveLibraryExport(const std::string& module, const std::string& exportName)
     {
         HMODULE hModule = GetModuleHandle(Util::Widen(module).c_str());

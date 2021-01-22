@@ -19,6 +19,7 @@
 #undef DELETE
 
 #include <TlHelp32.h>
+#include <psapi.h>
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>

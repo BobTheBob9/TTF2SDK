@@ -106,31 +106,45 @@ TTF2SDK::TTF2SDK(const SDKSettings& settings) :
 
     m_fsManager.reset(new FileSystemManager(settings.BasePath, *m_conCommandManager));
     m_sqManager.reset(new SquirrelManager(*m_conCommandManager));
-    m_uiManager.reset(new UIManager(*m_conCommandManager, *m_sqManager, *m_fsManager, m_ppD3D11Device));
-    m_pakManager.reset(new PakManager(*m_conCommandManager, m_engineServer, *m_sqManager, m_ppD3D11Device));
+    ////m_uiManager.reset(new UIManager(*m_conCommandManager, *m_sqManager, *m_fsManager, m_ppD3D11Device));
+    //m_pakManager.reset(new PakManager(*m_conCommandManager, m_engineServer, *m_sqManager, m_ppD3D11Device));
     m_modManager.reset(new ModManager(*m_conCommandManager, *m_sqManager));
     m_sourceConsole.reset(new SourceConsole(*m_conCommandManager, settings.DeveloperMode ? spdlog::level::debug : spdlog::level::info));
 
-    m_icepickMenu.reset(new IcepickMenu(*m_conCommandManager, *m_uiManager, *m_sqManager, *m_fsManager));
+    //m_icepickMenu.reset(new IcepickMenu(*m_conCommandManager, *m_uiManager, *m_sqManager, *m_fsManager));
 
     IVEngineServer_SpewFunc.Hook(m_engineServer->m_vtable, SpewFuncHook);
     _Host_RunFrame.Hook(WRAPPED_MEMBER(RunFrameHook));
-    engineCompareFunc.Hook(compareFuncHook);
+    //engineCompareFunc.Hook(compareFuncHook);
 
+    // we don't want these
     // Patch jump for loading MP maps in single player
-    {
-        void* ptr = mpJumpPatchFinder.GetFuncPtr();
-        SPDLOG_LOGGER_DEBUG(m_logger, "mpJumpPatchFinder = {}", ptr);
-        TempReadWrite rw(ptr);
-        *(unsigned char*)ptr = 0xEB;
-    }
+    //{
+    //    void* ptr = mpJumpPatchFinder.GetFuncPtr();
+    //    SPDLOG_LOGGER_DEBUG(m_logger, "mpJumpPatchFinder = {}", ptr);
+    //    TempReadWrite rw(ptr);
+    //    *(unsigned char*)ptr = 0xEB;
+    //}
 
     // Second patch, changing jz to jnz
+    //{
+    //    void* ptr = secondMpJumpPatchFinder.GetFuncPtr();
+    //    SPDLOG_LOGGER_DEBUG(m_logger, "secondMpJumpPatchFinder = {}", ptr);
+    //    TempReadWrite rw(ptr);
+    //    *((unsigned char*)ptr + 1) = 0x85;
+    //}
+
+    // allow multiple of the same account to connect for testing
     {
-        void* ptr = secondMpJumpPatchFinder.GetFuncPtr();
-        SPDLOG_LOGGER_DEBUG(m_logger, "secondMpJumpPatchFinder = {}", ptr);
+        void* ptr = (void*)(((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll) + 0x114510);
         TempReadWrite rw(ptr);
-        *((unsigned char*)ptr + 1) = 0x85;
+        *((char*)ptr) = (char)0xEB; // jne => jmp
+    }
+    // allow connecting to sp games
+    {
+        void* ptr = (void*)(((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll) + 0x1145B8);
+        TempReadWrite rw(ptr);
+        *((char*)ptr) = (char)0xEB; // jne => jmp
     }
 
     // Add delayed func task
@@ -138,13 +152,13 @@ TTF2SDK::TTF2SDK(const SDKSettings& settings) :
     AddFrameTask(m_delayedFuncTask);
 
     // Add squirrel functions for mouse deltas
-    m_sqManager->AddFuncRegistration(CONTEXT_CLIENT, "int", "GetMouseDeltaX", "", "", WRAPPED_MEMBER(SQGetMouseDeltaX));
-    m_sqManager->AddFuncRegistration(CONTEXT_CLIENT, "int", "GetMouseDeltaY", "", "", WRAPPED_MEMBER(SQGetMouseDeltaY));
+    //m_sqManager->AddFuncRegistration(CONTEXT_CLIENT, "int", "GetMouseDeltaX", "", "", WRAPPED_MEMBER(SQGetMouseDeltaX));
+    //m_sqManager->AddFuncRegistration(CONTEXT_CLIENT, "int", "GetMouseDeltaY", "", "", WRAPPED_MEMBER(SQGetMouseDeltaY));
+    //
+    //m_conCommandManager->RegisterCommand("noclip_enable", WRAPPED_MEMBER(EnableNoclipCommand), "Enable noclip", 0);
+    //m_conCommandManager->RegisterCommand("noclip_disable", WRAPPED_MEMBER(DisableNoclipCommand), "Disable noclip", 0);
 
-    m_conCommandManager->RegisterCommand("noclip_enable", WRAPPED_MEMBER(EnableNoclipCommand), "Enable noclip", 0);
-    m_conCommandManager->RegisterCommand("noclip_disable", WRAPPED_MEMBER(DisableNoclipCommand), "Disable noclip", 0);
-
-    StartIPC();
+    //StartIPC();
 }
 
 FileSystemManager& TTF2SDK::GetFSManager()
@@ -231,7 +245,7 @@ void TTF2SDK::RunFrameHook(double absTime, float frameTime)
     {
         m_logger->info("RunFrame called for the first time");
         m_sourceConsole->InitialiseSource();
-        m_pakManager->PreloadAllPaks();
+        //m_pakManager->PreloadAllPaks();
         called = true;
     }
    
