@@ -308,7 +308,7 @@ Mod::Mod(const fs::path& modFolder)
             // Add the file as a patch
             m_filesToPatch.emplace_back(relative);
         }
-        else if (path.parent_path() != m_folder) // Don't add assets in the root folder
+        else
         {
             // Add the file as a custom asset
             m_customAssets.emplace_back(relative);

@@ -115,7 +115,7 @@ TTF2SDK::TTF2SDK(const SDKSettings& settings) :
 
     IVEngineServer_SpewFunc.Hook(m_engineServer->m_vtable, SpewFuncHook);
     _Host_RunFrame.Hook(WRAPPED_MEMBER(RunFrameHook));
-    //engineCompareFunc.Hook(compareFuncHook);
+    engineCompareFunc.Hook(compareFuncHook);
 
     // we don't want these
     // Patch jump for loading MP maps in single player
@@ -152,11 +152,11 @@ TTF2SDK::TTF2SDK(const SDKSettings& settings) :
     AddFrameTask(m_delayedFuncTask);
 
     // Add squirrel functions for mouse deltas
-    //m_sqManager->AddFuncRegistration(CONTEXT_CLIENT, "int", "GetMouseDeltaX", "", "", WRAPPED_MEMBER(SQGetMouseDeltaX));
-    //m_sqManager->AddFuncRegistration(CONTEXT_CLIENT, "int", "GetMouseDeltaY", "", "", WRAPPED_MEMBER(SQGetMouseDeltaY));
-    //
-    //m_conCommandManager->RegisterCommand("noclip_enable", WRAPPED_MEMBER(EnableNoclipCommand), "Enable noclip", 0);
-    //m_conCommandManager->RegisterCommand("noclip_disable", WRAPPED_MEMBER(DisableNoclipCommand), "Disable noclip", 0);
+    m_sqManager->AddFuncRegistration(CONTEXT_CLIENT, "int", "GetMouseDeltaX", "", "", WRAPPED_MEMBER(SQGetMouseDeltaX));
+    m_sqManager->AddFuncRegistration(CONTEXT_CLIENT, "int", "GetMouseDeltaY", "", "", WRAPPED_MEMBER(SQGetMouseDeltaY));
+    
+    m_conCommandManager->RegisterCommand("noclip_enable", WRAPPED_MEMBER(EnableNoclipCommand), "Enable noclip", 0);
+    m_conCommandManager->RegisterCommand("noclip_disable", WRAPPED_MEMBER(DisableNoclipCommand), "Disable noclip", 0);
 
     //StartIPC();
 }
