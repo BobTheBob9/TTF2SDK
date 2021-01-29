@@ -258,6 +258,7 @@ Mod::Mod(const fs::path& modFolder)
         {
 			const rapidjson::Value& Info = customScripts[i];
 			const bool bIgnoreGamemode = Info.HasMember( "IgnoreGamemode" ) ? Info["IgnoreGamemode"].GetBool() : false;
+
 			if( bIsCorrectGamemode || bIgnoreGamemode )
 			{
 				m_customScripts.resize( m_customScripts.size() + 1 );
@@ -286,6 +287,8 @@ Mod::Mod(const fs::path& modFolder)
         if (!pathString.compare(0, scriptsFolder.size(), scriptsFolder) && 
             pathString.compare(0, mpLevelsFolder.size(), mpLevelsFolder))
         {
+
+            SPDLOG_LOGGER_INFO(logger, pathString);
             // If it's already marked as a custom file, move on
             if (customPaths.find(pathString) != customPaths.end())
             {

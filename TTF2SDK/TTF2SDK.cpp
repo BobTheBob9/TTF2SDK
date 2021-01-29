@@ -115,7 +115,7 @@ TTF2SDK::TTF2SDK(const SDKSettings& settings) :
 
     IVEngineServer_SpewFunc.Hook(m_engineServer->m_vtable, SpewFuncHook);
     _Host_RunFrame.Hook(WRAPPED_MEMBER(RunFrameHook));
-    engineCompareFunc.Hook(compareFuncHook);
+    //engineCompareFunc.Hook(compareFuncHook);
 
     // we don't want these
     // Patch jump for loading MP maps in single player
@@ -138,13 +138,44 @@ TTF2SDK::TTF2SDK(const SDKSettings& settings) :
     {
         void* ptr = (void*)(((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll) + 0x114510);
         TempReadWrite rw(ptr);
-        *((char*)ptr) = (char)0xEB; // jne => jmp
+        *((char*)ptr) = (char)0xEB; // jnz => jmp
     }
-    // allow connecting to sp games
+    // allow recieving clients regardless of IsSinglePlayerGame()
     {
         void* ptr = (void*)(((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll) + 0x1145B8);
         TempReadWrite rw(ptr);
-        *((char*)ptr) = (char)0xEB; // jne => jmp
+        *((char*)ptr) = (char)0xEB; // jnz => jmp
+    }
+    // TEMP PATCH prevent pausing from working regardless of IsSinglePlayerGame()
+    // todo: only do this if >1 players
+    {
+        void* ptr = (void*)(((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll) + 0x1167b7);
+        TempReadWrite rw(ptr);
+        *((char*)ptr) = (char)0xEB; // jnz => jmp
+    }
+    // currently not working
+    // allow fucking with update rates
+    // cl_updaterate_sp
+    {
+        void* ptr = (void*)(((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll) + 0x5A5F60);
+        TempReadWrite rw(ptr);
+        *((char*)ptr + 2) = (char)0x00;
+        *((char*)ptr + 3) = (char)0x00;
+        *((char*)ptr + 4) = (char)0x00;
+    }
+    // cl_updaterate_mp
+    {
+        void* ptr = (void*)(((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll) + 0x5A5F12);
+        TempReadWrite rw(ptr);
+        *((char*)ptr + 2) = (char)0x00;
+        *((char*)ptr + 3) = (char)0x00;
+        *((char*)ptr + 4) = (char)0x00;   
+    }
+    // cl_cmdrate
+    {
+        void* ptr = (void*)(((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll) + 0x5A5B60);
+        TempReadWrite rw(ptr);
+        *((char*)ptr + 2) = (char)0x00;
     }
 
     // Add delayed func task
