@@ -284,38 +284,40 @@ Mod::Mod(const fs::path& modFolder)
         // If the path is inside the scripts folder, need to do some special processing
         std::string pathString = path.string();
         std::string relative = pathString.substr(m_folder.string().size() + 1);
-        if (!pathString.compare(0, scriptsFolder.size(), scriptsFolder) && 
-            pathString.compare(0, mpLevelsFolder.size(), mpLevelsFolder))
-        {
-
+        //if (!pathString.compare(0, scriptsFolder.size(), scriptsFolder) && 
+        //    pathString.compare(0, mpLevelsFolder.size(), mpLevelsFolder))
+        //{
+        //
+        //    SPDLOG_LOGGER_INFO(logger, pathString);
+        //    // If it's already marked as a custom file, move on
+        //    if (customPaths.find(pathString) != customPaths.end())
+        //    {
+        //        continue;
+        //    }
+        //
+		//	// Only load if the gamemode is correct for this mod
+		//	//if( !bIsCorrectGamemode )
+		//	//{
+		//	//	continue;
+		//	//}
+        //
+        //    // Check if the path exists in the engine
+        //    //if (!SDK().GetFSManager().FileExists(relative.c_str(), "GAME"))
+        //    //{
+        //    //    logger->warn("{} in {} is not a custom script and does not correspond to a file in the game - it will not be loaded", relative, m_folder);
+        //    //    continue;
+        //    //}
+        //
+        //    // Add the file as a patch
+        //    m_filesToPatch.emplace_back(relative);
+        //}
+        //else
+        //{
+            // add file to compiled_assets
+            // sorta hacky tbh but works rn
             SPDLOG_LOGGER_INFO(logger, pathString);
-            // If it's already marked as a custom file, move on
-            if (customPaths.find(pathString) != customPaths.end())
-            {
-                continue;
-            }
-
-			// Only load if the gamemode is correct for this mod
-			if( !bIsCorrectGamemode )
-			{
-				continue;
-			}
-
-            // Check if the path exists in the engine
-            if (!SDK().GetFSManager().FileExists(relative.c_str(), "GAME"))
-            {
-                logger->warn("{} in {} is not a custom script and does not correspond to a file in the game - it will not be loaded", relative, m_folder);
-                continue;
-            }
-
-            // Add the file as a patch
             m_filesToPatch.emplace_back(relative);
-        }
-        else
-        {
-            // Add the file as a custom asset
-            m_customAssets.emplace_back(relative);
-        }
+        //}
     }
 }
 
@@ -324,11 +326,11 @@ ModManager::ModManager(ConCommandManager& conCommandManager, SquirrelManager& sq
     m_logger = spdlog::get("logger");
 
     conCommandManager.RegisterCommand("reload_mods", WRAPPED_MEMBER(ReloadModsCommand), "Reload all mods", 0);
-	conCommandManager.RegisterCommand( "icepick_gamemode", WRAPPED_MEMBER( SetGamemodeCommand ), "Set the gamemode using its id", 0 );
-	
-	sqManager.AddFuncRegistration( CONTEXT_CLIENT, "array", "GetIcepickGamemodes", "", "Returns an array of Icepick gamemodes", WRAPPED_MEMBER( GetIcepickGamemodes_Client ) );
-	sqManager.AddFuncRegistration( CONTEXT_SERVER, "array", "GetIcepickGamemodes", "", "Returns an array of Icepick gamemodes", WRAPPED_MEMBER( GetIcepickGamemodes_Server ) );
-	sqManager.AddFuncRegistration( CONTEXT_SERVER, "string", "GetIcepickGamemode", "", "Returns the current Icepick gamemode", WRAPPED_MEMBER( SqGetCurrentGamemode ) );
+	//conCommandManager.RegisterCommand( "icepick_gamemode", WRAPPED_MEMBER( SetGamemodeCommand ), "Set the gamemode using its id", 0 );
+	//
+	//sqManager.AddFuncRegistration( CONTEXT_CLIENT, "array", "GetIcepickGamemodes", "", "Returns an array of Icepick gamemodes", WRAPPED_MEMBER( GetIcepickGamemodes_Client ) );
+	//sqManager.AddFuncRegistration( CONTEXT_SERVER, "array", "GetIcepickGamemodes", "", "Returns an array of Icepick gamemodes", WRAPPED_MEMBER( GetIcepickGamemodes_Server ) );
+	//sqManager.AddFuncRegistration( CONTEXT_SERVER, "string", "GetIcepickGamemode", "", "Returns the current Icepick gamemode", WRAPPED_MEMBER( SqGetCurrentGamemode ) );
 }
 
 void ModManager::ReloadModsCommand(const CCommand& args)
@@ -512,23 +514,40 @@ void ModManager::PatchFile(const std::string& gamePath, const std::vector<fs::pa
     fs::create_directories((compilePath / gamePath).remove_filename());
 
     // Read the orignial file data
-    std::string baseData = SDK().GetFSManager().ReadOriginalFile(gamePath.c_str(), "GAME");
-    Util::FindAndReplaceAll(baseData, "\r\n", "\n");
-    std::string currentData(baseData);
+    //std::string baseData = SDK().GetFSManager().ReadOriginalFile(gamePath.c_str(), "GAME");
+    //Util::FindAndReplaceAll(baseData, "\r\n", "\n");
+    //std::string currentData(baseData);
 
     // Apply all the patches
-    for (const fs::path& patchFile : patchFiles)
+    //for (const fs::path& patchFile : patchFiles)
+    //{
+    //    try
+    //    {
+    //        
+    //        //SPDLOG_LOGGER_DEBUG(m_logger, "Merging {} into {}", patchFile, gamePath);
+    //        currentData = std::move(MergeFile(currentData, baseData, patchFile));
+    //    }
+    //    catch (std::exception& e)
+    //    {
+    //        m_logger->error("Failed to merge {} into {}: {}", patchFile, gamePath, e.what());
+    //    }
+    //}
+
+    // rather than doing merging stuff with diffs, just replace the scripts, even if they don't exist
+    // we need this because we don't mount all vpks anymore
+    std::string currentData;
+    std::ifstream stream(patchFiles.back());
+    if (!stream.good())
     {
-        try
-        {
-            SPDLOG_LOGGER_DEBUG(m_logger, "Merging {} into {}", patchFile, gamePath);
-            currentData = std::move(MergeFile(currentData, baseData, patchFile));
-        }
-        catch (std::exception& e)
-        {
-            m_logger->error("Failed to merge {} into {}: {}", patchFile, gamePath, e.what());
-        }
+        throw std::runtime_error("Failed to open patch file");
     }
+
+    stream.seekg(0, std::ios::end);
+    currentData.reserve(stream.tellg());
+    stream.seekg(0, std::ios::beg);
+
+    currentData.assign((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
+    currentData = std::move(currentData);
 
     // Write the data out
     std::ofstream f(compilePath / gamePath, std::ios::binary);
