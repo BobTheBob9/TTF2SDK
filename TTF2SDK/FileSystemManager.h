@@ -40,6 +40,8 @@ public:
     void DumpFile(FileHandle_t handle, const std::string& dir, const std::string& path);
     void DumpAllScripts(const CCommand& args);
 
+    void* Func12Hook(const char* filepath);
+
     const fs::path& GetBasePath();
     const fs::path& GetModsPath();
     const fs::path& GetCompilePath();

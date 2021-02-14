@@ -12,6 +12,7 @@ HookedVTableFunc<decltype(&IFileSystem::VTable::AddSearchPath), &IFileSystem::VT
 HookedVTableFunc<decltype(&IFileSystem::VTable::ReadFromCache), &IFileSystem::VTable::ReadFromCache> IFileSystem_ReadFromCache;
 HookedVTableFunc<decltype(&IFileSystem::VTable::MountVPK), &IFileSystem::VTable::MountVPK> IFileSystem_MountVPK;
 HookedFunc<FileHandle_t, VPKData*, __int32*, const char*> ReadFileFromVPK("filesystem_stdio.dll", "\x48\x89\x5C\x24\x00\x57\x48\x81\xEC\x00\x00\x00\x00\x49\x8B\xC0\x48\x8B\xDA", "xxxx?xxxx????xxxxxx");
+HookedFunc<void*, const char*> Func12("rtech_game.dll", "\x48\x83\xec\x28\x48\x8d\x15\x35\xa0\xff\xff\xf6\xc1\x03\x48\x8d\x05\x1b\xa0\xff\xff\x48\x0f\x45\xc2\xff\xd0\x48\x8b\xc8\x48\x83\xc4\x28\xe9\x59\xff\xff\xff\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xcc", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
 
 std::regex FileSystemManager::s_mapFromVPKRegex("client_(.+)\\.bsp");
 
@@ -45,6 +46,41 @@ FileSystemManager::FileSystemManager(const std::string& basePath, ConCommandMana
     IFileSystem_MountVPK.Hook(m_engineFileSystem->m_vtable, WRAPPED_MEMBER(MountVPKHook));
     ReadFileFromVPK.Hook(WRAPPED_MEMBER(ReadFileFromVPKHook));
     conCommandManager.RegisterCommand("dump_scripts", WRAPPED_MEMBER(DumpAllScripts), "Dump all scripts to development folder", 0);
+    Func12.Hook(WRAPPED_MEMBER(Func12Hook));
+}
+
+void* FileSystemManager::Func12Hook(const char* pathString)
+{
+    //SPDLOG_LOGGER_DEBUG(m_logger, "rpak read: {}", pathString);
+    // only override stuff that won't crash/cause script errors
+    //if (strncmp(filepath, "material", 8) == 0 && strncmp(filepath, "material/code_private", 21) != 0 && strncmp(filepath, "material\\ui", 11) != 0 && strncmp(filepath, "material\\vgui", 13) != 0 && strncmp(filepath, "material\\rui", 12) != 0 && strncmp(filepath, "material\\r2_ui", 14) != 0)
+    //    return 0;//Func12("material\\tools/toolsskybox_wld.rpak", unknown);
+
+    void *addr = Func12(pathString);
+    //SPDLOG_LOGGER_DEBUG(m_logger, "read to address: {}", addr);
+
+    fs::path path = pathString;
+    if (addr != nullptr && !strncmp(&pathString[strlen(pathString) - 5], ".rson", 5))
+    {
+        uint32_t length = *(int*)addr;
+        uint32_t header = *(int*)((char*)addr + 4);
+        intptr_t ptr = *(intptr_t*)((char*)addr + 8);
+        char addrFormat[12];
+        sprintf_s(addrFormat, "%X", (uint32_t)addr);
+        char headerFormat[12];
+        sprintf_s(headerFormat, "%X", header);
+        char ptrFormat[12];
+        sprintf_s(ptrFormat, "%X", (uint32_t)ptr);
+        SPDLOG_LOGGER_DEBUG(m_logger, "rpakReadResult 0x{} [ len: {}, header: 0x{}, data: 0x{} ]", addrFormat, length, header, ptrFormat);
+
+        char* data{ new char[length] {} };
+        memcpy(data, (void*)ptr, length);
+
+        std::fstream stream(path.filename(), std::ios_base::out);
+        stream.write(data, length);
+    }
+
+    return addr;
 }
 
 void FileSystemManager::CacheMapVPKs()
@@ -160,11 +196,13 @@ FileHandle_t FileSystemManager::ReadFileFromVPKHook(VPKData* vpkInfo, __int32* b
 VPKData* FileSystemManager::MountVPKHook(IFileSystem* fileSystem, const char* vpkPath)
 {
     SPDLOG_LOGGER_DEBUG(m_logger, "IFileSystem::MountVPK: vpkPath = {}", vpkPath);
+
     // When a level is loaded, the VPK for the map is mounted, so we'll mount every
     // other map's VPK at the same time.
     // TODO: This might be better moved to a hook on the function that actually loads up the map?
     MountAllVPKs();
 
+    //IFileSystem_MountVPK(fileSystem, "vpk/client_mp_common");
     VPKData* res = IFileSystem_MountVPK(fileSystem, vpkPath);
     return res;
 }

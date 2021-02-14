@@ -177,6 +177,20 @@ TTF2SDK::TTF2SDK(const SDKSettings& settings) :
         TempReadWrite rw(ptr);
         *((char*)ptr + 2) = (char)0x00;
     }
+    
+    // allow custom mp servers to load
+    {
+        void* ptr = (void*)(((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll) + 0x10103d);
+        TempReadWrite rw(ptr);
+        // prevent crash
+        *((char*)ptr) = (char)0x90;
+        *((char*)ptr + 1) = (char)0x90;
+        *((char*)ptr + 2) = (char)0x90;
+        *((char*)ptr + 3) = (char)0x90;
+        *((char*)ptr + 4) = (char)0x90;
+        // prevent fairfight kicks due to nop'd function
+        *((char*)ptr + 5) = (char)0x30; // test al,al => xor al,al (results in al = 0)
+    }
 
     // Add delayed func task
     m_delayedFuncTask = std::make_shared<DelayedFuncTask>();
