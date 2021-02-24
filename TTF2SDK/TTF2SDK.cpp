@@ -41,9 +41,67 @@ __int64 SpewFuncHook(IVEngineServer* engineServer, SpewType_t type, const char* 
 
     // There are some cases where Titanfall will pass an invalid format string to this function, causing a crash.
     // To avoid this, we setup a temporary invalid parameter handler which will just continue execution.
-    _invalid_parameter_handler oldHandler = _set_thread_local_invalid_parameter_handler(InvalidParameterHandler);
-    int val = _vsnprintf_s(pTempBuffer, sizeof(pTempBuffer) - 1, format, args);
-    _set_thread_local_invalid_parameter_handler(oldHandler);
+
+    int val = -1;
+    #if _DEBUG
+    // so titanfall 2 does this really cool thing where it occasionally gives invalid format strings that use invalid specifiers e.g. %', probably by mistake
+    // this is a problem exclusively in debug builds since the printf functions have debug asserts that will fail due to said specifiers
+    // in release these asserts aren't compiled in so our fail code will function by itself, but we've gotta detect and handle these failures manually in debug
+    
+    // in theory this could be bad when format[0] == null but i don't think that should ever happen and is easy to patch anyway
+    // aside from that this should mostly work? unsure
+    bool debugShouldSkip = false;
+    for (int i = 1; format[i] != 0; i++)
+        if (format[i - 1] == '%')
+        {
+            switch (format[i])
+            {
+            // this is fucking awful lol
+            case 'd':
+            case 'i':
+            case 'u':
+            case 'x':
+            case 'X':
+            case 'f':
+            case 'F':
+            case 'g':
+            case 'G':
+            case 'a':
+            case 'A':
+            case 'c':
+            case 's':
+            case 'p':
+            case 'n':
+            case '%':
+            case '-':
+            case '+':
+            case ' ':
+            case '#':
+            case '*':
+            case '0':
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+            case '8':
+            case '9':
+                break;
+
+            default:
+                debugShouldSkip = true;
+            }
+        }
+
+    if (!debugShouldSkip)
+    #endif
+    {
+        _invalid_parameter_handler oldHandler = _set_thread_local_invalid_parameter_handler(InvalidParameterHandler);
+        val = _vsnprintf_s(pTempBuffer, sizeof(pTempBuffer) - 1, format, args); // causes an assertion failure in debug builds
+        _set_thread_local_invalid_parameter_handler(oldHandler);
+    }
 
     if (val == -1)
     {
@@ -80,6 +138,8 @@ int64_t compareFuncHook(const char* first, const char* second, int64_t count)
     }
 }
 
+
+
 TTF2SDK::TTF2SDK(const SDKSettings& settings) :
     m_engineServer("engine.dll", "VEngineServer022"),
     m_engineClient("engine.dll", "VEngineClient013"),
@@ -93,6 +153,14 @@ TTF2SDK::TTF2SDK(const SDKSettings& settings) :
     {
         throw std::exception("Failed to initialise MinHook");
     }
+
+    // to refactor: misc hooks
+
+    CreateCurlHooks();
+
+    MH_EnableHook(MH_ALL_HOOKS);
+
+    //curl_infof((int64_t)nullptr, "dios mio");
 
     // Get pointer to d3d device
     char* funcBase = (char*)d3d11DeviceFinder.GetFuncPtr();
@@ -178,11 +246,11 @@ TTF2SDK::TTF2SDK(const SDKSettings& settings) :
         *((char*)ptr + 2) = (char)0x00;
     }
     
-    // allow custom mp servers to load
+    // get around a crash when making custom servers
     {
         void* ptr = (void*)(((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll) + 0x10103d);
         TempReadWrite rw(ptr);
-        // prevent crash
+        // prevent crashing function from calling
         *((char*)ptr) = (char)0x90;
         *((char*)ptr + 1) = (char)0x90;
         *((char*)ptr + 2) = (char)0x90;

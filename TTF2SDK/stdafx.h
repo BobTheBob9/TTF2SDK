@@ -87,4 +87,4 @@ namespace fs = std::filesystem;
 #include "SourceConsole.h"
 #include "CrashReporting.h"
 #include "TTF2SDK.h"
-
+#include "CurlHooks.h"

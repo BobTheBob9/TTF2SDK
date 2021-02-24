@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -140,6 +140,7 @@
     <ClInclude Include="ConCommandManager.h" />
     <ClInclude Include="Console.h" />
     <ClInclude Include="CrashReporting.h" />
+    <ClInclude Include="CurlHooks.h" />
     <ClInclude Include="diff_match_patch.h" />
     <ClInclude Include="FileSystemManager.h" />
     <ClInclude Include="IcepickMenu.h" />
@@ -196,6 +197,7 @@
     <ClCompile Include="ConCommandManager.cpp" />
     <ClCompile Include="Console.cpp" />
     <ClCompile Include="CrashReporting.cpp" />
+    <ClCompile Include="CurlHooks.cpp" />
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="FileSystemManager.cpp" />
     <ClCompile Include="IcepickMenu.cpp" />
