@@ -23,6 +23,7 @@ SigScanFunc<int64_t, void*> EnableNoclip("server.dll", "\x48\x89\x5C\x24\x00\x57
 SigScanFunc<int64_t, void*> DisableNoclip("server.dll", "\x48\x89\x5C\x24\x00\x57\x48\x81\xEC\x00\x00\x00\x00\x33\xC0", "xxxx?xxxx????xx");
 SigScanFunc<void*, int> UTIL_EntityByIndex("server.dll", "\x66\x83\xF9\xFF\x75\x03\x33\xC0\xC3", "xxxxxxxxx");
 
+char* pdefBuffer;
 
 void InvalidParameterHandler(
     const wchar_t* expression,
@@ -138,6 +139,43 @@ int64_t compareFuncHook(const char* first, const char* second, int64_t count)
     }
 }
 
+typedef char(__fastcall* parsePdefType)(char* pdef, int32_t a2, int64_t a3, int32_t a4);
+parsePdefType parsePdef;
+char parsePdefHook(char* pdef, int32_t a2, int64_t a3, int32_t a4)
+{
+    size_t len = strlen(pdef);
+    SPDLOG_LOGGER_TRACE(spdlog::get("logger"), len);
+    pdefBuffer = new char[len + 1];
+    strcpy_s(pdefBuffer, len + 1, pdef);
+
+    return parsePdef(pdef, a2, a3, a4);
+}
+
+typedef DWORD(__fastcall* clientConstructorType)(__int64 a1);
+clientConstructorType clientConstructor;
+DWORD __fastcall clientConstructorHook(__int64 player, __int64 a2, __int64 a3, __int64 a4)
+{
+    __int64 ret = clientConstructor(player);
+
+    // set persistent data as ready
+    *(char*)(player + 0x4a0) = (char)0x3;
+
+    SPDLOG_LOGGER_TRACE(spdlog::get("logger"), "player addr = {}", (player + 0x4a0));
+
+    char* playerdataBuffer = (char*)(player + 0x4fa);
+
+    // copy playerdata from disk
+    std::fstream playerdataStream("placeholder_playerdata.pdata", std::ios_base::in);
+    // get length of file
+    playerdataStream.seekg(0, playerdataStream.end);
+    int length = playerdataStream.tellg();
+    playerdataStream.seekg(0, playerdataStream.beg);
+
+    // write to client
+    playerdataStream.read(playerdataBuffer, length);
+
+    return ret;
+}
 
 
 TTF2SDK::TTF2SDK(const SDKSettings& settings) :
@@ -157,6 +195,14 @@ TTF2SDK::TTF2SDK(const SDKSettings& settings) :
     // to refactor: misc hooks
 
     CreateCurlHooks();
+
+    LPVOID parsePdefAddress = (LPVOID)((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll + 0x23A990);
+    if (MH_CreateHookEx(parsePdefAddress, &parsePdefHook, &parsePdef) != MH_OK)
+        SPDLOG_LOGGER_DEBUG(m_logger, "failed hooking parsePdef");
+
+    LPVOID clientConstructorAddress = (LPVOID)((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll + 0x101480);
+    if (MH_CreateHookEx(clientConstructorAddress, &clientConstructorHook, &clientConstructor) != MH_OK)
+        SPDLOG_LOGGER_DEBUG(m_logger, "failed hooking clientConstructor");
 
     MH_EnableHook(MH_ALL_HOOKS);
 
@@ -248,6 +294,8 @@ TTF2SDK::TTF2SDK(const SDKSettings& settings) :
     
     // get around a crash when making custom servers
     {
+        // this isn't really necessary now playerdata works but there's not really much point in removing it
+
         void* ptr = (void*)(((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll) + 0x10103d);
         TempReadWrite rw(ptr);
         // prevent crashing function from calling
@@ -270,6 +318,7 @@ TTF2SDK::TTF2SDK(const SDKSettings& settings) :
     
     m_conCommandManager->RegisterCommand("noclip_enable", WRAPPED_MEMBER(EnableNoclipCommand), "Enable noclip", 0);
     m_conCommandManager->RegisterCommand("noclip_disable", WRAPPED_MEMBER(DisableNoclipCommand), "Disable noclip", 0);
+    m_conCommandManager->RegisterCommand("dump_persistence", WRAPPED_MEMBER(DumpClientPersistence), "dump mp playerdata to a file", 0);
 
     //StartIPC();
 }
@@ -411,6 +460,26 @@ void TTF2SDK::DisableNoclipCommand(const CCommand& args)
     {
         m_logger->error("Failed to find player entity");
     }
+}
+
+void TTF2SDK::DumpClientPersistence(const CCommand& args)
+{
+    int length = *(int32_t*)(((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll) + 0x1401D438); // const address playerdata length is stored at
+    char* playerdataAddress = (char*)(((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll) + 0x7a6f98); // const address playerdata is stored at
+    // TODO calculate playerdata length at runtime using previously read/dumped pdefs, will require parsing but should be easy af
+
+    if (*playerdataAddress != (char)0xE7) // const pdef version for vanilla, this check should be removed at some point
+    {
+        SPDLOG_LOGGER_ERROR(m_logger, "playerdata's initializedVersion was not 231! playerdata address may be wrong!");
+        return;
+    }
+
+    std::fstream playerdataStream("dumped_playerdata.bin", std::ios_base::out);
+    playerdataStream.write(playerdataAddress, length);
+
+    // write pdef
+    std::fstream pdefStream("dumped_pdef.pdef", std::ios_base::out);
+    pdefStream.write(pdefBuffer, strlen(pdefBuffer));
 }
 
 void TTF2SDK::StartIPC()

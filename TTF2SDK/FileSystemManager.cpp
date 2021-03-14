@@ -71,13 +71,22 @@ void* FileSystemManager::Func12Hook(const char* pathString)
         sprintf_s(headerFormat, "%X", header);
         char ptrFormat[12];
         sprintf_s(ptrFormat, "%X", (uint32_t)ptr);
-        SPDLOG_LOGGER_DEBUG(m_logger, "rpakReadResult 0x{} [ len: {}, header: 0x{}, data: 0x{} ]", addrFormat, length, header, ptrFormat);
+        SPDLOG_LOGGER_DEBUG(m_logger, "rpakRson 0x{} [ len: {}, header: 0x{}, data: 0x{} ]", addrFormat, length, header, ptrFormat);
 
         char* data{ new char[length] {} };
         memcpy(data, (void*)ptr, length);
 
         std::fstream stream(path.filename(), std::ios_base::out);
         stream.write(data, length);
+    }
+
+    if (addr != nullptr && !strncmp(pathString, "ui/", 3))
+    {
+        char addrFormat[12];
+        sprintf_s(addrFormat, "%X", (uint32_t)addr);
+
+        char* nativeExport = *(char**)addr;
+        SPDLOG_LOGGER_DEBUG(m_logger, "rpakMrui 0x{} [ nativeExport: \"{}\" ]", addrFormat, nativeExport);
     }
 
     return addr;
