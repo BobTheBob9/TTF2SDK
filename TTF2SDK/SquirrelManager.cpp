@@ -174,7 +174,7 @@ int64_t SquirrelManager::RunClientInitCallbacksHook()
     for (const auto& cb : m_clientPreCallbacks)
     {
         SPDLOG_LOGGER_DEBUG(m_logger, "Executing client pre-mapspawn callback {}", cb);
-        RunCallback.CallServer(*m_ppServerVM, cb.c_str());
+        RunCallback.CallServer(*m_ppClientVM, cb.c_str());
     }
 
     // run mapspawn

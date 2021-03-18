@@ -443,7 +443,7 @@ void ModManager::CompileMods()
                 }
 
                 if (!customScript.ClientPreCallback.empty())
-                {
+                {   
                     sq.AddClientPreCallback(customScript.ClientPreCallback);
                 }
 

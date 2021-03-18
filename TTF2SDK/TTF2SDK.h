@@ -117,6 +117,8 @@ public:
 
     SQInteger SQGetMouseDeltaX(HSQUIRRELVM v);
     SQInteger SQGetMouseDeltaY(HSQUIRRELVM v);
+    SQInteger SQEnableNoclipForIndex(HSQUIRRELVM v);
+    SQInteger SQDisableNoclipForIndex(HSQUIRRELVM v);
 
     void EnableNoclipCommand(const CCommand& args);
     void DisableNoclipCommand(const CCommand& args);

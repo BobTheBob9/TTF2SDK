@@ -315,6 +315,9 @@ TTF2SDK::TTF2SDK(const SDKSettings& settings) :
     // Add squirrel functions for mouse deltas
     m_sqManager->AddFuncRegistration(CONTEXT_CLIENT, "int", "GetMouseDeltaX", "", "", WRAPPED_MEMBER(SQGetMouseDeltaX));
     m_sqManager->AddFuncRegistration(CONTEXT_CLIENT, "int", "GetMouseDeltaY", "", "", WRAPPED_MEMBER(SQGetMouseDeltaY));
+
+    m_sqManager->AddFuncRegistration(CONTEXT_SERVER, "void", "EnableNoclipForEntityIndex", "int entityIndex", "", WRAPPED_MEMBER(SQEnableNoclipForIndex));
+    m_sqManager->AddFuncRegistration(CONTEXT_SERVER, "void", "DisableNoclipForEntityIndex", "int entityIndex", "", WRAPPED_MEMBER(SQDisableNoclipForIndex));
     
     m_conCommandManager->RegisterCommand("noclip_enable", WRAPPED_MEMBER(EnableNoclipCommand), "Enable noclip", 0);
     m_conCommandManager->RegisterCommand("noclip_disable", WRAPPED_MEMBER(DisableNoclipCommand), "Disable noclip", 0);
@@ -434,6 +437,34 @@ SQInteger TTF2SDK::SQGetMouseDeltaY(HSQUIRRELVM v)
 {
     sq_pushinteger.CallClient(v, m_inputSystem->m_analogDeltaY);
     return 1;
+}
+
+SQInteger TTF2SDK::SQEnableNoclipForIndex(HSQUIRRELVM v)
+{
+    // unsure how to read entities from args so we use indexes instead
+    int entityIndex = sq_getinteger.CallServer(v, 1); // first arg
+    void* entity = UTIL_EntityByIndex(entityIndex);
+
+    if (entity != nullptr)
+        EnableNoclip(entity);
+    else
+        m_logger->error("failed to find entity to enable noclip given index");
+
+    return 0;
+}
+
+SQInteger TTF2SDK::SQDisableNoclipForIndex(HSQUIRRELVM v)
+{
+    // unsure how to read entities from args so we use indexes instead
+    int entityIndex = sq_getinteger.CallServer(v, 1); // first arg
+    void* entity = UTIL_EntityByIndex(entityIndex);
+
+    if (entity != nullptr)
+        DisableNoclip(entity);
+    else
+        m_logger->error("failed to find entity to disable noclip by given index");
+
+    return 0;
 }
 
 void TTF2SDK::EnableNoclipCommand(const CCommand& args)
