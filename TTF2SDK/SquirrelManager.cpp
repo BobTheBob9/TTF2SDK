@@ -170,7 +170,16 @@ void SquirrelManager::AddFuncRegistration(
 
 int64_t SquirrelManager::RunClientInitCallbacksHook()
 {
+    // run precallbacks before mapspawn
+    for (const auto& cb : m_clientPreCallbacks)
+    {
+        SPDLOG_LOGGER_DEBUG(m_logger, "Executing client pre-mapspawn callback {}", cb);
+        RunCallback.CallServer(*m_ppServerVM, cb.c_str());
+    }
+
+    // run mapspawn
     int64_t result = RunClientInitCallbacks();
+
     SPDLOG_LOGGER_DEBUG(m_logger, "RunClientInitCallbacks called ({})", result);
     for (const auto& cb : m_clientCallbacks)
     {
@@ -182,7 +191,16 @@ int64_t SquirrelManager::RunClientInitCallbacksHook()
 
 int64_t SquirrelManager::RunServerInitCallbacksHook()
 {
+    // run precallbacks before mapspawn
+    for (const auto& cb : m_serverPreCallbacks)
+    {
+        SPDLOG_LOGGER_DEBUG(m_logger, "Executing server pre-mapspawn callback {}", cb);
+        RunCallback.CallServer(*m_ppServerVM, cb.c_str());
+    }
+
+    // run mapspawn
     int64_t result = RunServerInitCallbacks();
+
     SPDLOG_LOGGER_DEBUG(m_logger, "RunServerInitCallbacks called ({})", result);
     for (const auto& cb : m_serverCallbacks)
     {
@@ -190,6 +208,16 @@ int64_t SquirrelManager::RunServerInitCallbacksHook()
         RunCallback.CallServer(*m_ppServerVM, cb.c_str());
     }
     return result;
+}
+
+void SquirrelManager::AddServerPreCallback(const std::string& cb)
+{
+    m_serverPreCallbacks.push_back(cb);
+}
+
+void SquirrelManager::AddClientPreCallback(const std::string& cb)
+{
+    m_clientPreCallbacks.push_back(cb);
 }
 
 void SquirrelManager::AddServerCallback(const std::string& cb)

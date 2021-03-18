@@ -75,6 +75,12 @@ const char* MOD_INFO_SCHEMA = R"END(
                     "RunAfter": {
                         "type": "string"
                     },
+                    "ServerPreCallback": {
+                        "type": "string"
+                    },
+                    "ClientPreCallback": {
+                        "type": "string"
+                    },
                     "ServerCallback": {
                         "type": "string"
                     },
@@ -183,6 +189,16 @@ void CreateCustomScriptInfo(CustomScriptInfo& script, const fs::path& modFolder,
     else
     {
         throw std::runtime_error(fmt::format("No valid trigger was specified for custom script with path {}", script.Path));
+    }
+
+    if (info.HasMember("ServerPreCallback"))
+    {
+        script.ServerPreCallback = info["ServerPreCallback"].GetString();
+    }
+
+    if (info.HasMember("ClientPreCallback"))
+    {
+        script.ClientPreCallback = info["ClientPreCallback"].GetString();
     }
 
     if (info.HasMember("ServerCallback"))
@@ -419,6 +435,16 @@ void ModManager::CompileMods()
                 else if (customScript.TriggerType == RUN_WHEN)
                 {
                     newScriptsRson += "\r\nWhen: \"" + customScript.RunTrigger + "\"\r\nScripts:\r\n[\r\n\t" + customScript.Path + "\r\n]\r\n";
+                }
+
+                if (!customScript.ServerPreCallback.empty())
+                {
+                    sq.AddServerPreCallback(customScript.ServerPreCallback);
+                }
+
+                if (!customScript.ClientPreCallback.empty())
+                {
+                    sq.AddClientPreCallback(customScript.ClientPreCallback);
                 }
 
                 if (!customScript.ClientCallback.empty())
