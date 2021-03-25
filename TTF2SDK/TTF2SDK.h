@@ -122,7 +122,8 @@ public:
 
     void EnableNoclipCommand(const CCommand& args);
     void DisableNoclipCommand(const CCommand& args);
-    void DumpClientPersistence(const CCommand& args);
+    void DumpClientPersistenceCommand(const CCommand& args);
+    void SetPlaylistCommand(const CCommand& args);
 
     void StartIPC();
     bool ConnectToIPCClient();

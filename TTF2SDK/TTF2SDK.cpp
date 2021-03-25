@@ -321,7 +321,8 @@ TTF2SDK::TTF2SDK(const SDKSettings& settings) :
     
     m_conCommandManager->RegisterCommand("noclip_enable", WRAPPED_MEMBER(EnableNoclipCommand), "Enable noclip", 0);
     m_conCommandManager->RegisterCommand("noclip_disable", WRAPPED_MEMBER(DisableNoclipCommand), "Disable noclip", 0);
-    m_conCommandManager->RegisterCommand("dump_persistence", WRAPPED_MEMBER(DumpClientPersistence), "dump mp playerdata to a file", 0);
+    m_conCommandManager->RegisterCommand("dump_persistence", WRAPPED_MEMBER(DumpClientPersistenceCommand), "dump mp playerdata to a file", 0);
+    m_conCommandManager->RegisterCommand("setplaylist", WRAPPED_MEMBER(SetPlaylistCommand), "set current playlist", 0);
 
     //StartIPC();
 }
@@ -493,7 +494,7 @@ void TTF2SDK::DisableNoclipCommand(const CCommand& args)
     }
 }
 
-void TTF2SDK::DumpClientPersistence(const CCommand& args)
+void TTF2SDK::DumpClientPersistenceCommand(const CCommand& args)
 {
     int length = *(int32_t*)(((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll) + 0x1401D438); // const address playerdata length is stored at
     char* playerdataAddress = (char*)(((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll) + 0x7a6f98); // const address playerdata is stored at
@@ -511,6 +512,18 @@ void TTF2SDK::DumpClientPersistence(const CCommand& args)
     // write pdef
     std::fstream pdefStream("dumped_pdef.pdef", std::ios_base::out);
     pdefStream.write(pdefBuffer, strlen(pdefBuffer));
+}
+
+typedef char(__fastcall setPlaylistFuncType)(char* playlistName);
+void TTF2SDK::SetPlaylistCommand(const CCommand& args)
+{
+    if (args.ArgC() < 2)
+        return;
+
+    char* playlistName = (char*)args.Arg(1); // get first arg for name
+
+    setPlaylistFuncType* setPlaylistFuncAddress = (setPlaylistFuncType*)(((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll) + 0x18eb20); // get ptr to setplaylist func
+    setPlaylistFuncAddress(playlistName); // call it
 }
 
 void TTF2SDK::StartIPC()
