@@ -151,6 +151,23 @@ char parsePdefHook(char* pdef, int32_t a2, int64_t a3, int32_t a4)
     return parsePdef(pdef, a2, a3, a4);
 }
 
+char* nextPlayerPdata;
+
+typedef __int64(__fastcall* connectClientType)(void* server, void* a2, __int64 a3, uint32_t a4, uint32_t a5, int32_t a6, __int64 a7, __int64 a8, char* serverFilter, __int64 a10, char a11, __int64 a12, char a13, char a14, __int64 a15, uint32_t a16, uint32_t a17);
+connectClientType connectClient;
+__int64 __fastcall connectClientHook(void* server, void* a2, __int64 a3, uint32_t a4, uint32_t a5, int32_t a6, __int64 a7, __int64 a8, char* serverFilter, __int64 a10, char a11, __int64 a12, char a13, char a14, __int64 a15, uint32_t a16, uint32_t a17)
+{
+    // very temp code for the testing session
+    // we store player auth info in the serverfilter, since it's sent in the connection packet already
+    // for testing this is just a unique identifier
+    nextPlayerPdata = serverFilter;
+    serverFilter = "";
+
+    return connectClient(server, a2, a3, a4, a5, a6, a7, a8, serverFilter, a10, a11, a12, a13, a14, a15, a16, a17);
+}
+
+int pdataLength;
+
 typedef DWORD(__fastcall* clientConstructorType)(__int64 a1);
 clientConstructorType clientConstructor;
 DWORD __fastcall clientConstructorHook(__int64 player, __int64 a2, __int64 a3, __int64 a4)
@@ -164,11 +181,34 @@ DWORD __fastcall clientConstructorHook(__int64 player, __int64 a2, __int64 a3, _
 
     char* playerdataBuffer = (char*)(player + 0x4fa);
 
+    // build path
+    std::string path = "playerdata/placeholder_playerdata.pdata";
+    if (*nextPlayerPdata)
+    {
+        path = "playerdata/playerdata_";
+        path += nextPlayerPdata;
+        path += ".pdata";
+
+        SPDLOG_LOGGER_DEBUG(spdlog::get("logger"), "playerdata:");
+        SPDLOG_LOGGER_DEBUG(spdlog::get("logger"), path);
+
+        // set uuid too lol
+        strcpy_s((char*)(player + 0xF500), strlen(nextPlayerPdata) + 1,nextPlayerPdata);
+    }
+
     // copy playerdata from disk
-    std::fstream playerdataStream("placeholder_playerdata.pdata", std::ios_base::in);
+    std::fstream playerdataStream(path, std::ios_base::in);
+
+    if (playerdataStream.fail()) // file doesn't exist, use placeholder for now, we'll save it to its own file later
+    {
+        path = "playerdata/placeholder_playerdata.pdata";
+        playerdataStream = std::fstream(path, std::ios_base::in);
+    }
+
     // get length of file
     playerdataStream.seekg(0, playerdataStream.end);
     int length = playerdataStream.tellg();
+    pdataLength = length;
     playerdataStream.seekg(0, playerdataStream.beg);
 
     // write to client
@@ -177,6 +217,61 @@ DWORD __fastcall clientConstructorHook(__int64 player, __int64 a2, __int64 a3, _
     return ret;
 }
 
+typedef void(__fastcall* rejectClientType)(void* a1, uint32_t a2, void* a3, char* a4, ...);
+rejectClientType rejectClient;
+void __fastcall rejectClientHook(void* a1, uint32_t a2, void* connectingClient, char* format, ...)
+{
+    // temp hook until serverFilter fuckery is complete
+
+    char tempBuffer[4096];
+
+    va_list args;
+    va_start(args, format);
+    vsprintf_s(tempBuffer, format, args);
+    va_end(args);
+
+    char* rejectString = tempBuffer;
+    // if this is a serverFilter kick we don't wanna leak the serverFilter we're using to clients
+    char* serverFilterString = "Incoming server filter of";
+    if (strncmp(rejectString, serverFilterString, strlen(serverFilterString)) == 0)
+        rejectString = "The password entered was incorrect";
+
+    rejectClient(a1, a2, connectingClient, rejectString);
+}
+
+typedef void(__fastcall* doConCommandType)(int32_t a1, char* command, uint32_t a3);
+
+typedef __int64(__fastcall* commandConnectType)(__int64 a1);
+commandConnectType commandConnect;
+__int64 __fastcall commandConnectHook(__int64 a1)
+{
+    // very temp for pre-refactor playtests
+    // set serverfilter for auth
+    doConCommandType doConCommand = (doConCommandType)((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll + 0x1203B0);
+    char* originUid = (char*)((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll + 0x13F8E688);
+    std::string filterCommand = "serverFilter ";
+    filterCommand += originUid;
+
+    doConCommand(0, (char*)filterCommand.c_str(), 0);
+
+    return commandConnect(a1);
+}
+
+typedef bool(__fastcall* isFlagSetType)(void* convar, int flags);
+isFlagSetType isFlagSet;
+bool __fastcall isFlagSetHook(void* convar, int flags)
+{
+    if (convar != nullptr)
+    {
+        // allow us to fuck with any hidden/devonly convars
+        char* nameptr = *((char**)convar + 3); // base + 24
+        if (flags == 1 << 1 || flags == 1 << 4) // FCVAR_DEVELOPMENTONLY or FCVAR_HIDDEN
+            return false; // can't check with | rather than == because it seems to fuck up a few things regarding auth/platform stuff
+    }
+
+
+    return isFlagSet(convar, flags);
+}
 
 TTF2SDK::TTF2SDK(const SDKSettings& settings) :
     m_engineServer("engine.dll", "VEngineServer022"),
@@ -200,9 +295,25 @@ TTF2SDK::TTF2SDK(const SDKSettings& settings) :
     if (MH_CreateHookEx(parsePdefAddress, &parsePdefHook, &parsePdef) != MH_OK)
         SPDLOG_LOGGER_DEBUG(m_logger, "failed hooking parsePdef");
 
+    LPVOID connectClientAddress = (LPVOID)((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll + 0x114430);
+    if (MH_CreateHookEx(connectClientAddress, &connectClientHook, &connectClient) != MH_OK)
+        SPDLOG_LOGGER_DEBUG(m_logger, "failed hooking CBaseServer::ConnectClient");
+
     LPVOID clientConstructorAddress = (LPVOID)((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll + 0x101480);
     if (MH_CreateHookEx(clientConstructorAddress, &clientConstructorHook, &clientConstructor) != MH_OK)
         SPDLOG_LOGGER_DEBUG(m_logger, "failed hooking clientConstructor");
+
+    LPVOID rejectClientAddress = (LPVOID)((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll + 0x1182e0);
+    if (MH_CreateHookEx(rejectClientAddress, &rejectClientHook, &rejectClient) != MH_OK)
+        SPDLOG_LOGGER_DEBUG(m_logger, "failed hooking rejectClient");
+
+    LPVOID commandConnectAddress = (LPVOID)((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll + 0x76720);
+    if (MH_CreateHookEx(commandConnectAddress, &commandConnectHook, &commandConnect) != MH_OK)
+        SPDLOG_LOGGER_DEBUG(m_logger, "failed hooking command connect"); 
+
+    LPVOID isFlagSetAddress = (LPVOID)((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll + 0x417FA0);
+    if (MH_CreateHookEx(isFlagSetAddress, &isFlagSetHook, &isFlagSet) != MH_OK)
+        SPDLOG_LOGGER_DEBUG(m_logger, "failed hooking convar::isflagset");
 
     MH_EnableHook(MH_ALL_HOOKS);
 
@@ -267,30 +378,6 @@ TTF2SDK::TTF2SDK(const SDKSettings& settings) :
         TempReadWrite rw(ptr);
         *((char*)ptr) = (char)0xEB; // jnz => jmp
     }
-    // currently not working
-    // allow fucking with update rates
-    // cl_updaterate_sp
-    {
-        void* ptr = (void*)(((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll) + 0x5A5F60);
-        TempReadWrite rw(ptr);
-        *((char*)ptr + 2) = (char)0x00;
-        *((char*)ptr + 3) = (char)0x00;
-        *((char*)ptr + 4) = (char)0x00;
-    }
-    // cl_updaterate_mp
-    {
-        void* ptr = (void*)(((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll) + 0x5A5F12);
-        TempReadWrite rw(ptr);
-        *((char*)ptr + 2) = (char)0x00;
-        *((char*)ptr + 3) = (char)0x00;
-        *((char*)ptr + 4) = (char)0x00;   
-    }
-    // cl_cmdrate
-    {
-        void* ptr = (void*)(((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll) + 0x5A5B60);
-        TempReadWrite rw(ptr);
-        *((char*)ptr + 2) = (char)0x00;
-    }
     
     // get around a crash when making custom servers
     {
@@ -308,6 +395,13 @@ TTF2SDK::TTF2SDK(const SDKSettings& settings) :
         *((char*)ptr + 5) = (char)0x30; // test al,al => xor al,al (results in al = 0)
     }
 
+    // temp patch to prevent serverfilter stuff from kicking for playtests
+    {
+        void* ptr = (void*)(((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll) + 0x114655);
+        TempReadWrite rw(ptr);
+        *((char*)ptr) = (char)0xEB; // jz => jmp
+    }
+
     // Add delayed func task
     m_delayedFuncTask = std::make_shared<DelayedFuncTask>();
     AddFrameTask(m_delayedFuncTask);
@@ -318,6 +412,8 @@ TTF2SDK::TTF2SDK(const SDKSettings& settings) :
 
     m_sqManager->AddFuncRegistration(CONTEXT_SERVER, "void", "EnableNoclipForEntityIndex", "int entityIndex", "", WRAPPED_MEMBER(SQEnableNoclipForIndex));
     m_sqManager->AddFuncRegistration(CONTEXT_SERVER, "void", "DisableNoclipForEntityIndex", "int entityIndex", "", WRAPPED_MEMBER(SQDisableNoclipForIndex));
+
+    m_sqManager->AddFuncRegistration(CONTEXT_SERVER, "void", "SavePdataForEntityIndex", "int entityIndex", "", WRAPPED_MEMBER(SQSavePdata));
     
     m_conCommandManager->RegisterCommand("noclip_enable", WRAPPED_MEMBER(EnableNoclipCommand), "Enable noclip", 0);
     m_conCommandManager->RegisterCommand("noclip_disable", WRAPPED_MEMBER(DisableNoclipCommand), "Disable noclip", 0);
@@ -464,6 +560,29 @@ SQInteger TTF2SDK::SQDisableNoclipForIndex(HSQUIRRELVM v)
         DisableNoclip(entity);
     else
         m_logger->error("failed to find entity to disable noclip by given index");
+
+    return 0;
+}
+
+SQInteger TTF2SDK::SQSavePdata(HSQUIRRELVM v)
+{
+    // unsure how to read entities from args so we use indexes instead
+    int playerIndex = sq_getinteger.CallServer(v, 1);
+    char* playerBase = (char*)(((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll) + 0x12a53f90 + (playerIndex * 0x2D728));
+
+    char* uuid = playerBase + 0xf500; // get uuid
+    char* playerPdata = playerBase + 0x4fa; // get pdata offset
+
+    if (*uuid) // will be null if not using pdata
+    {
+        // build path
+        std::string path = "playerdata/playerdata_";
+        path += uuid;
+        path += ".pdata";
+
+        std::fstream pdataStream(path, std::ios_base::out);
+        pdataStream.write(playerPdata, pdataLength);
+    }
 
     return 0;
 }

@@ -233,7 +233,10 @@ void SquirrelManager::AddClientCallback(const std::string& cb)
 void SquirrelManager::ClearCallbacks()
 {
     m_clientCallbacks.clear();
+    m_clientPreCallbacks.clear();
+
     m_serverCallbacks.clear();
+    m_serverPreCallbacks.clear();
 }
 
 template<ExecutionContext context>
