@@ -101,6 +101,20 @@ const char* MOD_INFO_SCHEMA = R"END(
                 ],
                 "required": ["Path"]
             }
+        },
+        "IncludeAdditionalPreexistingScripts": {
+            "type": "array",
+            "items": { 
+                "type": "object",
+                "properties": {
+                    "RunOn": {
+                        "type": "string"
+                    },
+                    "Path": {
+                        "type": "string"
+                    }
+                }
+            }
         }
     },
     "required": ["Name"]
@@ -285,6 +299,21 @@ Mod::Mod(const fs::path& modFolder)
         }
     }
 
+    if (d.HasMember("IncludeAdditionalPreexistingScripts"))
+    {
+        const rapidjson::Value& additionalScripts = d["IncludeAdditionalPreexistingScripts"];
+        for (rapidjson::SizeType i = 0; i < additionalScripts.Size(); i++)
+        {
+            //m_additionalPreexistingScriptsToInclude.resize(m_additionalPreexistingScriptsToInclude.size() + 1);
+            
+            CustomScriptInfo scriptInfo;
+            scriptInfo.RunTrigger = additionalScripts[i]["RunOn"].GetString();
+            scriptInfo.Path = additionalScripts[i]["Path"].GetString();
+
+            m_additionalPreexistingScriptsToInclude.push_back(scriptInfo);
+        }
+    }
+
     // Iterate over all the files in the mod, putting relevant files into patches and customs
     std::string scriptsFolder = (m_folder / "scripts").string();
     std::string mpLevelsFolder = (m_folder / "scripts/vscripts/mp/levels").string();
@@ -463,6 +492,14 @@ void ModManager::CompileMods()
             {
                 filesToPatch[patchFile].push_back(mod.m_folder / patchFile);
             }
+
+            // add additional includes
+            for (const auto& additionalScript : mod.m_additionalPreexistingScriptsToInclude)
+            {
+                SPDLOG_LOGGER_TRACE(m_logger, "additional preexisting script: {} {}", mod.m_name, additionalScript.Path);
+                newScriptsRson += "\r\nWhen: \"" + additionalScript.RunTrigger + "\"\r\nScripts:\r\n[\r\n\t" + additionalScript.Path + "\r\n]\r\n";
+            }
+                
 
             m_mods.push_back(mod);
             scriptsRson = std::move(newScriptsRson);

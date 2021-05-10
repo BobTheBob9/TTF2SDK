@@ -212,6 +212,9 @@ VPKData* FileSystemManager::MountVPKHook(IFileSystem* fileSystem, const char* vp
     MountAllVPKs();
 
     //IFileSystem_MountVPK(fileSystem, "vpk/client_mp_common");
+
+    //IFileSystem_MountVPK(m_engineFileSystem, "vpk/client_mp_northstar_common.bsp"); 
+    IFileSystem_MountVPK(m_engineFileSystem, "vpk/client_mp_northstar_common.bsp"); // very temp for testing
     VPKData* res = IFileSystem_MountVPK(fileSystem, vpkPath);
     return res;
 }

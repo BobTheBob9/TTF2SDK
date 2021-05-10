@@ -42,6 +42,7 @@ private:
     std::vector<std::string> m_filesToPatch; // Relative paths to assets which can be patched into the game
     std::vector<std::string> m_customAssets; // Paths to custom assets, i.e. something not already in the engine and patchable
     std::vector<CustomScriptInfo> m_customScripts;
+    std::vector<CustomScriptInfo> m_additionalPreexistingScriptsToInclude; // scripts that already exist in vpk, but are unused
 	GamemodeInfo m_gamemode;
 
     friend class ModManager;

@@ -273,6 +273,87 @@ bool __fastcall isFlagSetHook(void* convar, int flags)
     return isFlagSet(convar, flags);
 }
 
+typedef __int64(__fastcall* updateLoadingScreenType)(__int64 a1, const char* a2, const char* a3);
+updateLoadingScreenType updateLoadingScreen;
+
+typedef void* (__fastcall getPanelType)(__int64 a1, char* name, uint8_t a2);
+typedef void* (__fastcall rtDynamicCastType)(void* panel, int a2, void* type1, void* type2, int a5);
+typedef __int64(__fastcall setImagePanelImageType)(void* panel, const char* imagePath);
+
+__int64 __fastcall updateLoadingScreenHook(__int64 a1, const char* a2, const char* a3)
+{
+     // needs work
+
+    __int64 result = updateLoadingScreen(a1, a2, a3);
+
+    // get the vgui LoadingTeamLogo panel
+    getPanelType* getPanel = (getPanelType*)((DWORD64)GetModuleHandleA("client.dll") + 0x759F50); // get function
+    void* basePanel = getPanel(a1, "LoadingTeamLogo", 0);
+
+    rtDynamicCastType* rtDynamicCast = (rtDynamicCastType*)((DWORD64)(Util::GetModuleInfo("client.dll").lpBaseOfDll) + 0x7FF1E0); // get another function
+    void* castedPanel = rtDynamicCast(basePanel, 0, (void*)((char*)Util::GetModuleInfo("client.dll").lpBaseOfDll + 0xAEFA80), (void*)((char*)Util::GetModuleInfo("client.dll").lpBaseOfDll + 0xB3CB78), 0); // cast from a vgui panel to an image panel
+    if (!castedPanel) // panel doesn't exist
+        return result;
+
+    // read current faction from clientside persistence
+    uint32_t factionId = *(uint32_t*)((char*)Util::GetModuleInfo("engine.dll").lpBaseOfDll + 0x7a6f98 + 0x3EB); // client pdata + 3eb
+
+    std::string factionIcon;
+    switch (factionId)
+    {
+        case 0: // faction_apex
+        {
+            factionIcon = "ui/loading_screen_faction/faction_apex_logo";
+            break;
+        }
+
+        case 1: // faction_64
+        {
+            factionIcon = "ui/loading_screen_faction/faction_64_logo";
+            break;
+        }
+
+        case 2: // faction_vinson
+        {
+            factionIcon = "ui/loading_screen_faction/faction_vinson_logo";
+            break;
+        }
+
+        case 3: // faction_marauder
+        {
+            factionIcon = "ui/loading_screen_faction/faction_marauder_logo";
+            break;
+        }
+
+        case 4: // faction_aces
+        {
+            factionIcon = "ui/loading_screen_faction/faction_aces_logo";
+            break;
+        }
+
+        case 5: // faction_ares
+        {
+            factionIcon = "ui/loading_screen_faction/faction_ares_logo";
+            break;
+        }
+        
+        case 6: // faction_marvin
+        {
+            factionIcon = "ui/loading_screen_faction/faction_marvin_logo";
+            break;
+        }
+    }
+
+    // todo: would be nice if this did last resort in fd too
+
+    setImagePanelImageType* setImagePanelImage = (setImagePanelImageType*)((DWORD64)Util::GetModuleInfo("client.dll").lpBaseOfDll + 0x79D5C0);
+    setImagePanelImage(castedPanel, factionIcon.c_str());
+
+    SPDLOG_LOGGER_DEBUG(spdlog::get("logger"), "set loading screen faction image to {} from id {}", factionIcon, factionId);
+
+    return result;
+}
+
 TTF2SDK::TTF2SDK(const SDKSettings& settings) :
     m_engineServer("engine.dll", "VEngineServer022"),
     m_engineClient("engine.dll", "VEngineClient013"),
@@ -314,6 +395,10 @@ TTF2SDK::TTF2SDK(const SDKSettings& settings) :
     LPVOID isFlagSetAddress = (LPVOID)((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll + 0x417FA0);
     if (MH_CreateHookEx(isFlagSetAddress, &isFlagSetHook, &isFlagSet) != MH_OK)
         SPDLOG_LOGGER_DEBUG(m_logger, "failed hooking convar::isflagset");
+
+    LPVOID updateLoadingScreenAddress = (LPVOID)((DWORD64)Util::GetModuleInfo("client.dll").lpBaseOfDll + 0x4CFDE0);
+    if (MH_CreateHookEx(updateLoadingScreenAddress, &updateLoadingScreenHook, &updateLoadingScreen) != MH_OK)
+        SPDLOG_LOGGER_DEBUG(m_logger, "failed hooking updateLoadingScreen");
 
     MH_EnableHook(MH_ALL_HOOKS);
 
@@ -400,6 +485,31 @@ TTF2SDK::TTF2SDK(const SDKSettings& settings) :
         void* ptr = (void*)(((DWORD64)Util::GetModuleInfo("engine.dll").lpBaseOfDll) + 0x114655);
         TempReadWrite rw(ptr);
         *((char*)ptr) = (char)0xEB; // jz => jmp
+    }
+
+    // remove preexisting logic for setting scoreboard logos: imc
+    {
+        void* ptr = (void*)(((DWORD64)Util::GetModuleInfo("client.dll").lpBaseOfDll) + 0x4D0408);
+        TempReadWrite rw(ptr);
+        *((char*)ptr) = (char)0x90;
+        *((char*)ptr + 1) = (char)0x90;
+        *((char*)ptr + 2) = (char)0x90;
+        *((char*)ptr + 3) = (char)0x90;
+        *((char*)ptr + 4) = (char)0x90;
+        *((char*)ptr + 5) = (char)0x90;
+        *((char*)ptr + 6) = (char)0x90;
+    }
+
+    // remove preexisting logic for setting scoreboard logos: militia
+    {
+        void* ptr = (void*)(((DWORD64)Util::GetModuleInfo("client.dll").lpBaseOfDll) + 0x4D0420);
+        TempReadWrite rw(ptr);
+        *((char*)ptr) = (char)0x90;
+        *((char*)ptr + 1) = (char)0x90;
+        *((char*)ptr + 2) = (char)0x90;
+        *((char*)ptr + 3) = (char)0x90;
+        *((char*)ptr + 4) = (char)0x90;
+        *((char*)ptr + 5) = (char)0x90;
     }
 
     // Add delayed func task
